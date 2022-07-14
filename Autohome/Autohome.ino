@@ -1,83 +1,62 @@
-/*PWM OUTPUTS*/
-const int F1LR1RGBL1R = 2;
-const int F1LR1RGBL1G = 3;
-const int F1LR1RGBL1B = 4;
-const int F1BR1WRL1 = 5;
-const int F1KT1WRL1 = 6;
-/*Digital OUTPUTS*/
-const int F1ME1RGBI1R = 22;
-const int F1ME1RGBI1B = 23;
-const int F1ME1RGBI1G = 24;
-const int F1BTR1FL1 = 25;
-const int F1ME1SAL1 = 26;
+#include "homeDevices.h"
+/*Globals*/
+String  digitalInputsNames[]            = {"Timbre" , "Estufa", "Ventana" , "Alarma"  , "Luz habitación", "Luz cocina", "Luz baño"};
+long long digitalInputsLastActionTime[] = {millis() , millis(),  millis() ,  millis() ,    millis()     ,   millis()  ,   millis()};
 
+String analogInputsNames[]              = {"Luz roja", "Luz verde", "Luz azul"};
+long long analogInputsLastActionTime[]  = { millis() ,    millis(),   millis()};
 
-/*Analog INPUTS*/
-const int F1LR1RGBP1R = A15;
-const int F1LR1RGBP1G = A14;
-const int F1LR1RGBP1B = A13;
-const int F1ME1DBB1 = A12;
-const int F1KT1STO1 = A11;
-const int F1ME1WS1 = A10;
-const int F1LR1PAB1 = A9;
-const int F1BR1LB1 = A8;
-const int F1KT1LB1 = A7;
-const int F1BTR1LB1 = A6;
+String  digitalOutputsNames[]           = {"Timbre" , "Estufa", "Ventana" , "Alarma"  , "Luz habitación", "Luz cocina", "Luz baño"};
+int  digitalOutputsPins[]               = {   26    ,     27  ,    27     ,     24    ,         5       ,       6     ,    25     };
+bool    digitalOutputsLastStates[]      = {  false  ,   false ,   false   ,   false   ,     false       ,     false   ,    false};
 
+String analogOutputsNames[]             = {"Luz roja", "Luz verde", "Luz azul"};
+int analogOutputsLastStates[]           = { analogRead(F1LR1RGBP1R) , analogRead(F1LR1RGBP1G), analogRead(F1LR1RGBP1B)};
 
+int buttonSensibility = 1000;
+
+/*initial configuration*/
 void setup() {
-  /*Input pins*/
-  pinMode(F1LR1RGBP1R, INPUT);
-  pinMode(F1LR1RGBP1G, INPUT);
-  pinMode(F1LR1RGBP1B, INPUT);
-  pinMode(F1ME1DBB1, INPUT_PULLUP);
-  pinMode(F1KT1STO1, INPUT_PULLUP);
-  pinMode(F1ME1WS1, INPUT_PULLUP);
-  pinMode(F1LR1PAB1, INPUT_PULLUP);
-  pinMode(F1BR1LB1, INPUT_PULLUP);
-  pinMode(F1KT1LB1, INPUT_PULLUP);
-  pinMode(F1BTR1LB1, INPUT_PULLUP);
-
-  /*Output pins*/
-  pinMode(F1LR1RGBL1R, OUTPUT);
-  pinMode(F1LR1RGBL1G, OUTPUT);
-  pinMode(F1LR1RGBL1B, OUTPUT);
-  pinMode(F1BR1WRL1, OUTPUT);
-  pinMode(F1KT1WRL1, OUTPUT);
-  pinMode(F1ME1RGBI1R, OUTPUT);
-  pinMode(F1ME1RGBI1B, OUTPUT);
-  pinMode(F1ME1RGBI1G, OUTPUT);
-  pinMode(F1BTR1FL1, OUTPUT);
-  pinMode(F1ME1SAL1, OUTPUT);
-
-  /*Estados iniciales de salida*/
-  digitalWrite(F1LR1RGBL1R, LOW);
-  digitalWrite(F1LR1RGBL1G, LOW);
-  digitalWrite(F1LR1RGBL1B, LOW);
-  digitalWrite(F1BR1WRL1, LOW);
-  digitalWrite(F1KT1WRL1, LOW);
-  digitalWrite(F1ME1RGBI1R, LOW);
-  digitalWrite(F1ME1RGBI1B, LOW);
-  digitalWrite(F1ME1RGBI1G, LOW);
-  digitalWrite(F1BTR1FL1, LOW);
-  digitalWrite(F1ME1SAL1, LOW);
+  setupDevices();
   Serial.begin(115200);
 }
-
 void loop() {
-  //int F1LR1RGBP1R_value = analogRead(F1LR1RGBP1R);
-  //int F1ME1DBB1_value = !digitalRead(F1ME1DBB1);
-  //int inputs[] = {F1ME1DBB1, F1KT1STO1, F1ME1WS1, F1LR1PAB1, F1BR1LB1, F1KT1LB1, F1BTR1LB1};
-  int inputs[] = {A12, A11, A10, A9, A8, A7, A6 };
+  if (actionDetected()) {
+    updateStates();
+  };
+}
+
+void updateStates() {
   for (int i = 0; i < 7; i++) {
-    bool value = !digitalRead(inputs[i]);
-    if (value) {
-      Serial.print(inputs[i]);
-      Serial.print("=");
-      Serial.println(value);
+    digitalWrite(digitalOutputsPins[i], digitalOutputsLastStates[i]);
+  }
+  for (int i = 2; i < 5; i++) {
+    analogWrite(i, analogOutputsLastStates[i - 2]);
+  }
+}
+
+bool actionDetected() {
+  bool detected = false;
+  for (int i = 66; i > 59; i--) {
+    bool pulse = !digitalRead(i);
+    if (pulse && millis() - digitalInputsLastActionTime[66 - i] > buttonSensibility) {
+      Serial.print("¡");
+      Serial.print(digitalInputsNames[66 - i]);
+      Serial.println(" activado!");
+      digitalOutputsLastStates[66 - i] = !digitalOutputsLastStates[66 - i];
+      digitalInputsLastActionTime[66 - i] = millis();
+      digitalWrite(digitalOutputsPins[66 - i], digitalOutputsLastStates[66 - i]);
+      detected = true;
     }
   }
-  delay(100);
+  for (int i = 69; i > 66; i--) {
+    if (abs(analogOutputsLastStates[69 - i] - analogRead(i)) > 50) {
+      Serial.println(abs(analogOutputsLastStates[69 - i] - analogRead(i)));
+      detected = true;
+      analogOutputsLastStates[69 - i] = analogRead(i);
+    }
+  }
+  return detected;
 }
 
 void testPwm(int times, int vel) {
